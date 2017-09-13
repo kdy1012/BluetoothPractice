@@ -10,11 +10,14 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
-import kr.co.tjeit.bluetoothpractice.adapter.BtAdapter;
+import kr.co.tjeit.bluetoothpractice.adapter.BtNewDeviceAdapter;
+import kr.co.tjeit.bluetoothpractice.adapter.BtPairedDeviceAdapter;
 import kr.co.tjeit.bluetoothpractice.data.BtDevice;
 
 public class DeviceListActivity extends BaseActivity {
@@ -24,8 +27,13 @@ public class DeviceListActivity extends BaseActivity {
     private android.widget.ListView pairedDeviceListView;
     private android.widget.Button scanBtn;
 
+//    처음 연결하는 기기들을 뵤여주기 위한 리스트 / 어댑터
     List<BtDevice> newDeviceList = new ArrayList<>();
-    BtAdapter mBtListAdapter;
+    BtNewDeviceAdapter mBtListAdapter;
+
+//    기존에 페어링된 기기들을 보여주기 위한 리스트 / 어탭터
+    List<BtDevice> pairedDeviceList = new ArrayList<>();
+    BtPairedDeviceAdapter pairedDeviceAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,9 +58,26 @@ public class DeviceListActivity extends BaseActivity {
 
             }
         });
+    }
+
+//    화면이 메모리에서 해제될 때 (완전히 사라질 때) 실행되는 메쏘드.
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+//        만약, 탐색 작업이 진행중이었다면, 탐색을 종료.
+        if (mBtAdapter != null) {
+//            무작정 취소를 날려도 상황에 따라 알아서 정지기능만 실행.
+            mBtAdapter.cancelDiscovery();
+        }
+
+//        브로드캐스트 리시버의 기능을 해제.
+
+        unregisterReceiver(mReceiver);
 
     }
-//    주변의 블루투스 기기를 탐색.
+
+    //    주변의 블루투스 기기를 탐색.
 
     void doDiscovery () {
 
@@ -73,8 +98,32 @@ public class DeviceListActivity extends BaseActivity {
     @Override
     public void setValuse() {
 
+//        블루투스 어댑터 초기화
+        mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+
+//        기존에 페어링 된 기기를 보여줄 리스트뷰 세팅.
+        pairedDeviceAdapter = new BtPairedDeviceAdapter(mContext, pairedDeviceList);
+        pairedDeviceListView.setAdapter(pairedDeviceAdapter);
+
+//        페어링 된 적이 있는 기기들의 목록을 가져옴.
+        Set<BluetoothDevice> pairedDevices = mBtAdapter.getBondedDevices();
+
+        if (pairedDevices.size() > 0) {
+//            페어링 된 기기를 가지고 있다.
+
+//            페어링 목록을 보여주고, 새 기기 목록을 숨겨주자.
+            newDeviceListView.setVisibility(View.GONE);
+            pairedDeviceListView.setVisibility(View.VISIBLE);
+
+//            페어링된 기기 목록을 리스트에 추가하고, 데이터 새로고침
+            for (BluetoothDevice device : pairedDevices) {
+                pairedDeviceList.add(new BtDevice(device.getName(), device.getAddress()));
+            }
+            pairedDeviceAdapter.notifyDataSetChanged();
+        }
+
 //        탐색된 블루투스 기기를 보여줄 리스트뷰 세팅
-        mBtListAdapter = new BtAdapter(mContext, newDeviceList);
+        mBtListAdapter = new BtNewDeviceAdapter(mContext, newDeviceList);
         newDeviceListView.setAdapter(mBtListAdapter);
 
 //        브로드 캐스트 리시버를 등록.
@@ -88,6 +137,11 @@ public class DeviceListActivity extends BaseActivity {
 //        1) 방송이 수신되었을 때 진행할 행동을 담은 Receiver => 맨 밑에 따로 작성
 //        2) 어던 방송을 수신할 지 설정해둔 IntentFilter
         registerReceiver(mReceiver, foundfiFilter);
+
+//        방송을 수신하고자 한다. => 기기 탐색이 종요되었음을 알리는 방송.
+
+        IntentFilter discoveryEndFilter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        registerReceiver(mReceiver, discoveryEndFilter);
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -104,6 +158,8 @@ public class DeviceListActivity extends BaseActivity {
 
             if (actionName.equals(BluetoothDevice.ACTION_FOUND)) {
 
+                Toast.makeText(context, "기기를 찾았습니다.", Toast.LENGTH_SHORT).show();
+
 //                방송 데이터 안에 들어있는 블루투스기기 클래스를 받아오기.
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
@@ -115,7 +171,16 @@ public class DeviceListActivity extends BaseActivity {
 
                     newDeviceList.add(new BtDevice(device.getName(), device.getAddress()));
                     mBtListAdapter.notifyDataSetChanged();
-                    
+                }
+            }
+            else if (actionName.equals(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)) {
+//                t새로 검색된 기기가 없다면
+                if (newDeviceList.size() == 0) {
+                    Toast.makeText(context, "검색된 기기가 없습니다.", Toast.LENGTH_SHORT).show();
+
+//                    다시 탐색할 수 있도록 버튼 표시.
+                    scanBtn.setVisibility(View.VISIBLE);
+
                 }
             }
         }
