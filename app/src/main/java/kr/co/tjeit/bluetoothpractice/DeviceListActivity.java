@@ -8,8 +8,11 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.Adapter;
+import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -21,6 +24,9 @@ import kr.co.tjeit.bluetoothpractice.adapter.BtPairedDeviceAdapter;
 import kr.co.tjeit.bluetoothpractice.data.BtDevice;
 
 public class DeviceListActivity extends BaseActivity {
+
+//    인텐트에서 상대방 장비의 주소를 넘겨줄때 쓰는 메모.
+    public static String EXTRA_DEVICE_ADDRESS = "device_address";
 
     private BluetoothAdapter mBtAdapter;
     private android.widget.ListView newDeviceListView;
@@ -58,6 +64,32 @@ public class DeviceListActivity extends BaseActivity {
 
             }
         });
+
+        AdapterView.OnItemClickListener deviceClickListener = new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+
+//               만약 기기를 찾는중이라면, 연결을 위해 탐색 중지
+                mBtAdapter.cancelDiscovery();
+
+//                장비의 주소를 가져와야함.
+
+                TextView deviceAddressTxt = (TextView) view.findViewById(R.id.deviceAddressTxt);
+
+                String address = deviceAddressTxt.getText().toString();
+
+//                Intent에 연결할 장비의 주소를 넣어줌.
+//                TODO - 다음화면 진행 필요.
+
+                Intent intent = new Intent();
+                intent.putExtra(EXTRA_DEVICE_ADDRESS, address);
+                startActivity(intent);
+
+            }
+        };
+
+        newDeviceListView.setOnItemClickListener(deviceClickListener);
+        pairedDeviceListView.setOnItemClickListener(deviceClickListener);
     }
 
 //    화면이 메모리에서 해제될 때 (완전히 사라질 때) 실행되는 메쏘드.
